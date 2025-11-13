@@ -1,25 +1,16 @@
-## Interface: 11505
+## Interface: 11200
 ## Title: Bites
-## Notes: Shows which items are used in cooking, which mobs they drop, and what they are used for.
-## Version: 1.3.7
-## Description: Shows which items are used in cooking, which mobs they drop, and what they are used for.
+## Notes: Shows which items are used in cooking and what they are used for.
+## Version: 1.0
+## Description: Shows which items are used in cooking and what they are used for.
 ## DefaultState: enabled
 
 ## SavedVariablesPerCharacter: BitesCookBook_SavedVariables
 
 Lists/CookingRecipes.lua
-Lists/CookingRecipes_Wrath.lua
-Lists/CookingRecipes_Cata.lua
-Lists/CookingReagents.lua
-Lists/CookingReagents_Wrath.lua
-Lists/CookingReagents_Cata.lua
 
 InitializeAddon.lua
 Localization.lua
-Options.lua
+## Options.lua
 
-CraftableTooltips.lua
-ReagentTooltips.lua
-EnemyTooltips.lua
-
-GeneralTooltipFunctions.lua
+Tooltips.lua

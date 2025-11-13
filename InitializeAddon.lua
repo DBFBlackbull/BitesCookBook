@@ -1,146 +1,152 @@
 BitesCookBook = CreateFrame("Frame")
 BitesCookBook.Options = {
 	ShowIngredientTooltip = true,
-        HideReagentTooltipsButHint = false, -- If true, the reagent tooltips will be hidden, but a hint will still be shown.
-        ShowCraftableFirstRank = false, -- In the reagent tooltip, show the first rank of the craftable item.
-            ShowCraftableRankRange = false, -- In the reagent tooltip, also show the subsequent rank range of the craftable item.
-        ShowCraftableIcon = true, -- In the reagent tooltip, show the icon of the craftable item.
-        GrayHighCraftables = false, -- In the reagent tooltip, gray out the craftable if it is too high rank.
-        ColorCraftableByRank = true, -- In the reagent tooltip, color the craftable item by rank.
-    MinRankCategory = 1, -- The minimum rank category to show in the reagent tooltip.
-    MaxRankCategory = 5, -- The maximum rank category to show in the reagent tooltip.
+	HideReagentTooltipsButHint = false, -- If true, the reagent tooltips will be hidden, but a hint will still be shown.
+	ShowCraftableFirstRank = false, -- In the reagent tooltip, show the first rank of the craftable item.
+	ShowCraftableRankRange = false, -- In the reagent tooltip, also show the subsequent rank range of the craftable item.
+	ShowCraftableIcon = true, -- In the reagent tooltip, show the icon of the craftable item.
+	GrayHighCraftables = false, -- In the reagent tooltip, gray out the craftable if it is too high rank.
+	ColorCraftableByRank = true, -- In the reagent tooltip, color the craftable item by rank.
+	MinRankCategory = 1, -- The minimum rank category to show in the reagent tooltip.
+	MaxRankCategory = 5, -- The maximum rank category to show in the reagent tooltip.
 	ShowCraftableTooltip = false, -- In the craftable tooltip, show required reagents.
 	ShowEnemyTooltip = true, -- In the enemy tooltip, show droppable reagents.
-        ColorDropsByRank = true, -- In the enemy tooltip, color the reagents by the highest ranked recipe that uses it.
+	ColorDropsByRank = true, -- In the enemy tooltip, color the reagents by the highest ranked recipe that uses it.
 	HasModifier = 0, -- 0 = no modifier, true = has modifier, false = has inverse modifier
-    ModifierKey = "SHIFT", -- SHIFT, ALT, CTRL
+	ModifierKey = "SHIFT", -- SHIFT, ALT, CTRL
 }
 
-function BitesCookBook.ADDON_LOADED(self, event, addonName)
-    if addonName ~= "BitesCookBook" then return end
-
-    BitesCookBook:ConfigureSavedVariables() -- Set or load the saved variables.
-    BitesCookBook:InitializeOptionsMenu() -- Build the options menu.
-    BitesCookBook.Recipes, BitesCookBook.Reagents = BitesCookBook:GetListsForVersion() -- Choose the correct recipe and reagent lists.
-
-    -- Dynamically create a list for all ingredients and their associated recipes, or mobs and their associated reagent drops.
-    BitesCookBook.CraftablesForReagent = BitesCookBook:GetAllIngredients(BitesCookBook.Recipes)
-    BitesCookBook.MobsDroppingReagent = BitesCookBook:GetAllMobs(BitesCookBook.Reagents)
-
-    -- We keep track of the player's locale/language.
-    BitesCookBook.ClientLocale = GetLocale()
-
-    -- We should cache all the item names by loading the items ones.
-    -- This prevent the tooltips from appearing empty when the player first opens them.
-    -- TODO: Is it at all possible to simply wait for an item to load. Can we pause script execution?
-    BitesCookBook:CacheItems(BitesCookBook.Recipes, BitesCookBook.Reagents)
-    BitesCookBook:UnregisterEvent(event) -- Finally, the addon-loading event is unregistered.
+function BitesCookBook:Print(string)
+	DEFAULT_CHAT_FRAME:AddMessage("[BitesCookBook] " .. string)
 end
 
-function BitesCookBook.PLAYER_ENTERING_WORLD(BitesCookBook, event)
-    -- Get the player's cooking skill level.
-    BitesCookBook.CookingSkillRank = BitesCookBook:GetSkillLevel("Cooking")
+function BitesCookBook:ADDON_LOADED(self, eventName, addonName)
+	eventName = eventName or event
+	addonName = addonName or arg1
+	if addonName ~= "BitesCookBook" then return end
 
-    -- The player-entering-world event is unregistered.
-    BitesCookBook:UnregisterEvent(event)
+	--BitesCookBook:ConfigureSavedVariables() -- Set or load the saved variables.
+	--BitesCookBook:InitializeOptionsMenu() -- Build the options menu.
+	self.Recipes = BitesCookBook_RecipesClassic
+
+	-- Dynamically create a list for all ingredients and their associated recipes, or mobs and their associated reagent drops.
+	self.CraftablesForReagent = self:GetAllIngredients(self.Recipes)
+
+	-- We keep track of the player's locale/language.
+	self.L = (BitesCookBook.Locales[GetLocale()] or BitesCookBook.Locales["enUS"])
+
+	-- We should cache all the item names by loading the items ones.
+	-- This prevent the tooltips from appearing empty when the player first opens them.
+	self:CacheItems(self.Recipes)
+	self:HookTooltips()
+	self:RegisterEvent("CHAT_MSG_SKILL") -- test this
+	self:RegisterEvent("PLAYER_ENTERING_WORLD")
+	self:UnregisterEvent(eventName) -- Finally, the addon-loading event is unregistered.
 end
 
-function BitesCookBook.CHAT_MSG_SKILL(BitesCookBook, event)
-    -- Update the player's cooking skill level.
-    BitesCookBook.CookingSkillRank = BitesCookBook:GetSkillLevel("Cooking")
+function BitesCookBook:PLAYER_ENTERING_WORLD(self, eventName)
+	eventName = eventName or event
+
+	-- Get the player's cooking skill level.
+	self.CookingSkillRank = self:GetSkillLevel("Cooking")
+
+	-- The player-entering-world event is unregistered.
+	self:UnregisterEvent(eventName)
 end
 
-function BitesCookBook.OnEvent(self, Event, AddonName)
-    -- Call the function with the same name as the event.
-    self[Event](self, Event, AddonName)
+function BitesCookBook:CHAT_MSG_SKILL(self, event)
+	-- Update the player's cooking skill level.
+	self.CookingSkillRank = self:GetSkillLevel("Cooking")
 end
 
-BitesCookBook:RegisterEvent("CHAT_MSG_SKILL")
+function BitesCookBook.OnEvent()
+	-- Call the function with the same name as the event.
+	BitesCookBook[event](BitesCookBook, event, arg1)
+end
+
 BitesCookBook:RegisterEvent("ADDON_LOADED")
-BitesCookBook:RegisterEvent("PLAYER_ENTERING_WORLD")
 BitesCookBook:SetScript("OnEvent", BitesCookBook.OnEvent)
 
 --------------------------------------------------------------------------------
 -- Helper functions
 --------------------------------------------------------------------------------
 
-function BitesCookBook:CacheItems(RecipeList, ReagentList)
-    -- We load every item in the recipe and reagent lists to cache their names.
-    for ID, _ in pairs(RecipeList) do
-        GetItemInfo(ID)
-    end
-
-    for ID, _ in pairs(ReagentList) do
-        GetItemInfo(ID)
-    end
+BitesCookBook.ItemCache = {}
+function BitesCookBook:CacheItems(RecipeList)
+	-- We load every item in the recipe and reagent lists to cache their names.
+	for itemID, _ in pairs(RecipeList) do
+		local itemName, itemLink, itemQuality = GetItemInfo(itemID)
+		local _, _, _, hex = GetItemQualityColor(tonumber(itemQuality))
+		local hyperLink = hex.. "|H".. itemLink .."|h["..itemName.."]|h" .. FONT_COLOR_CODE_CLOSE
+		BitesCookBook.ItemCache[itemName] = hyperLink
+	end
 end
+
+function BitesCookBook:GetItemLinkByName(name)
+	if BitesCookBook.ItemCache[name] then
+		return BitesCookBook.ItemCache[name]
+	end
+
+	for itemID = 1, 25818 do
+		local itemName, itemLink, itemQuality = GetItemInfo(itemID)
+		if (itemName and itemName == name) then
+			local _, _, _, hex = GetItemQualityColor(tonumber(itemQuality))
+			local hyperLink = hex.. "|H".. itemLink .."|h["..itemName.."]|h" .. FONT_COLOR_CODE_CLOSE
+			BitesCookBook.ItemCache[name] = hyperLink
+			return hyperLink
+		end
+	end
+end
+
+local skippedIngredients = {
+	[2678] = true, -- Mild Spices
+	[2692] = true, -- Hot Spices
+	[3713] = true, -- Soothing Spices
+	[1179] = true, -- Ice Cold Milk
+	[4536] = true, -- Shiny Red Apple
+	[159]  = true, -- Refreshing Spring Water
+}
 
 function BitesCookBook:GetAllIngredients(RecipeList)
-    -- Dynamically create a list for all ingredients and their associated recipes.
-    local Reagents = {}
-    
-    for recipe_key, recipe in pairs(RecipeList) do
-        for ingredient, _ in pairs(recipe["Materials"]) do
-            if Reagents[ingredient] == nil then
-                Reagents[ingredient] = {recipe_key}
-            else
-                table.insert(Reagents[ingredient], recipe_key)
-            end
-        end
-    end
+	-- Dynamically create a list for all ingredients and their associated recipes.
+	local Reagents = {}
 
-    -- sort each ingredient list based on the recipe range[1]
-    for ingredient, recipe_list in pairs(Reagents) do
-        table.sort(recipe_list, function(a, b)
-            return RecipeList[a]["Range"][1] > RecipeList[b]["Range"][1]
-        end)
-    end
+	for recipeItemID, recipe in pairs(RecipeList) do
+		for ingredientID, _ in pairs(recipe["Materials"]) do
+			if Reagents[ingredientID] == nil then
+				Reagents[ingredientID] = {}
+			end
 
-    return Reagents
+			if not skippedIngredients[ingredientID] then
+				table.insert(Reagents[ingredientID], recipeItemID)
+			end
+		end
+	end
+
+	-- sort each ingredient list based on the recipe range[1]
+	for ingredient, recipe_list in pairs(Reagents) do
+		table.sort(recipe_list, function(a, b)
+			return RecipeList[a]["Range"][1] > RecipeList[b]["Range"][1]
+		end)
+	end
+
+	return Reagents
 end
 
-function BitesCookBook:GetAllMobs(ReagentsDict)
-    -- Dynamically create a list for all Mobs and their associated reagent drops.
-    local MobsAndDrops = {}
-    
-    for DropID, DropDetails in pairs(ReagentsDict) do
-        for MobID, ChangeToDropReagent in pairs(DropDetails.DroppedBy) do
-            if MobsAndDrops[MobID] == nil then
-                MobsAndDrops[MobID] = {}
-            end
-            
-            table.insert(MobsAndDrops[MobID], DropID)
-        end
-    end
+function BitesCookBook:GetSkillLevel(skillName)
+	ExpandSkillHeader(0) -- Ensure all skills are expanded
 
-    -- Sort the ingredient drops of each mobs on the list based on their max-used recipe range.
-    for MobID, Drops in pairs(MobsAndDrops) do
-        table.sort(Drops, function(IngredientID_A, IngredientID_B)
-            local HighestRecipeId_A = BitesCookBook.CraftablesForReagent[IngredientID_A][1] -- The first recipe is the highest ranked one.
-            local HighestRanks_A = BitesCookBook.Recipes[HighestRecipeId_A]["Range"]
+	-- Get a profession's skill level.
+	for skillIndex = 1, GetNumSkillLines() do
+		local skillLineName, _, _, skillRank = GetSkillLineInfo(skillIndex)
 
-            local HighestRecipeId_B = BitesCookBook.CraftablesForReagent[IngredientID_B][1] -- The first recipe is the highest ranked one.
-            local HighestRanks_B = BitesCookBook.Recipes[HighestRecipeId_B]["Range"]
+		if skillLineName == skillLineName then
+			return skillRank
+		end
+	end
 
-            return HighestRanks_A[1] > HighestRanks_B[1]
-        end)
-    end
-
-    return MobsAndDrops
-end
-
-function BitesCookBook:GetSkillLevel(SkillName)
-    -- Get a profession's skill level.
-    for skillIndex = 1, GetNumSkillLines() do
-        local SkillInfo = {GetSkillLineInfo(skillIndex)}
-
-        if SkillInfo[1] == SkillName then
-            return SkillInfo[4]
-        end
-    end
-    
-    -- If we cannot not find the skill, the rank is 0.
-    return 0
+	-- If we cannot not find the skill, the rank is 0.
+	return 0
 end
 
 function BitesCookBook:ConfigureSavedVariables()
@@ -167,22 +173,4 @@ function BitesCookBook:ConfigureSavedVariables()
     end
 
     return
-end
-
-function BitesCookBook:GetListsForVersion()
-    -- Detect if we are in classic.
-    local buildversion = select(4, GetBuildInfo())
-    local isClassic = select(4, GetBuildInfo()) < 30000
-    local isWotLK = select(4, GetBuildInfo()) < 40000
-
-    if isClassic then
-        print("BitesCookBook: Classic.")
-        return BitesCookBook_RecipesClassic, BitesCookBook_ReagentsClassic
-    elseif isWotLK then
-        print("BitesCookBook: Wrath of the Lich King.")
-        return BitesCookBook_RecipesWotLK, BitesCookBook_ReagentsWotLK
-    else
-        print("BitesCookBook: Cataclysm.")
-        return BitesCookBook_RecipesCata, BitesCookBook_ReagentsCata
-    end
 end
