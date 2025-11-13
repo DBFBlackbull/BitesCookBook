@@ -7,7 +7,7 @@
 
 ## SavedVariablesPerCharacter: BitesCookBook_SavedVariables
 
-Lists/CookingRecipes.lua
+Lists\CookingRecipes.lua
 
 InitializeAddon.lua
 Localization.lua

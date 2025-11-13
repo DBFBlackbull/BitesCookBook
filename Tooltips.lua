@@ -26,27 +26,28 @@ function BitesCookBook:AddIngredientRecipes(tooltip, itemLink)
 	-- Cycle through all recipes that use the ingredient to create the tooltip.
 	for _, recipeID in ipairs(self.CraftablesForReagent[itemID]) do
 		if self:IsRecipeInRange(recipeID) then
-			local craftableName, craftableIcon = self:GetItemNameAndIconByID(recipeID)
+			local recipe = self.Recipes[recipeID]
+			local craftableName = self:GetItemNameByID(recipeID) or recipe["Name"]
 			local craftableColor = self:GetCraftableColor(recipeID)
 
 			-- Show the recipe icon if the option is enabled.
-			craftableIcon = self.Options.ShowCraftableIcon and "|T".. craftableIcon .. ":0|t " or ""
+			local text = "    " .. craftableColor .. craftableName.. FONT_COLOR_CODE_CLOSE
 
-			local text = "    " .. craftableIcon .. craftableColor .. craftableName.. FONT_COLOR_CODE_CLOSE
-
-			local ShowFirstLevel = self.Options.ShowCraftableFirstRank
-			local ShowLevelRange = self.Options.ShowCraftableRankRange
-
-			if ShowFirstLevel then
-				local RankingRange = self.Recipes[recipeID]["Range"]
-				local FirstRangeText = RankingRange[1] > 1 and RankingRange[1] or Locale["Starter"]
+			if self.Options.ShowCraftableFirstRank then
+				local RankingRange = recipe["Range"]
+				local FirstRangeText = RankingRange[1] > 1 and RankingRange[1] or self.L["Starter"]
 
 				-- When the first rank is 1, it's a starter recipe.
-				text = text .. "-" .. self.TextColors["Orange"] .. FirstRangeText .. FONT_COLOR_CODE_CLOSE
+				text = text .. self.TextColors["White"] .. " (" .. self.TextColors["Orange"] .. FirstRangeText
 
-				if ShowLevelRange then
-					text = text .. FONT_COLOR_CODE_CLOSE .. "-" .. self.TextColors["Yellow"] .. RankingRange[2] .. FONT_COLOR_CODE_CLOSE .. "-".. BitesCookBook.TextColors["Green"].. RankingRange[3].. FONT_COLOR_CODE_CLOSE .. "-".. BitesCookBook.TextColors["Gray"].. RankingRange[4].. FONT_COLOR_CODE_CLOSE
+				if self.Options.ShowCraftableRankRange then
+					text = text .. " " .. self.TextColors["Yellow"] .. RankingRange[2] .. " ".. self.TextColors["Green"].. RankingRange[3] .. " ".. self.TextColors["Gray"].. RankingRange[4]
 				end
+				text = text .. self.TextColors["White"] .. ")"
+			end
+
+			if self.Options.ShowCraftableFaction and recipe["Faction"] then
+				text = text .. self.TextColors["White"] .. " (" .. recipe["Faction"] .. ")"
 			end
 
 			table.insert(recipes, text)
@@ -138,6 +139,8 @@ BitesCookBook.TextColors = {
 	["Green"] = "|cff1eff00",
 	["Gray"] = "|c007d7d7d",
 	["White"] = "|cffffffff",
+	["Alliance"] = "|cFF162c57",
+	["Horde"] = "|cFF8C1616",
 }
 
 BitesCookBook.ModifierKeys = {
@@ -159,13 +162,11 @@ function BitesCookBook:GetItemIDFromLink(itemLink)
 	return tonumber(itemID)
 end
 
-function BitesCookBook:GetItemNameAndIconByID(ItemID)
-	local itemName, _, _, _, _, _, _, _, itemIcon = GetItemInfo(ItemID)
+function BitesCookBook:GetItemNameByID(itemID)
+	local itemName = GetItemInfo(itemID)
 
 	-- Sometimes WoW won't find the name immediately.
-	itemName = itemName or ""
-	itemIcon = itemIcon or "Interface\\Icons\\INV_Misc_QuestionMark"
-	return itemName, itemIcon
+	return itemName or tostring(itemID)
 end
 
 function BitesCookBook:CheckModifierKey()
@@ -182,20 +183,65 @@ end
 
 function BitesCookBook:IsRecipeInRange(RecipeId)
 	-- If the user has the modifier key set to "Unlock filters", we should always return true.
-	if BitesCookBook.Options.HasModifier == 1 and BitesCookBook.ModifierKeys[BitesCookBook.Options.ModifierKey]() == not ModifierValue then
+	if self.Options.HasModifier == 1 and self.ModifierKeys[self.Options.ModifierKey]() == not ModifierValue then
 		return true
 	end
 
 	-- Otherwise, check if the recipe is in the player's range.
-	local RankingRange = BitesCookBook.Recipes[RecipeId]["Range"]
-	local MinimumCategory = BitesCookBook.Options.MinRankCategory
-	local MaximumCategory = BitesCookBook.Options.MaxRankCategory
+	local RankingRange = self.Recipes[RecipeId]["Range"]
+	local MinimumCategory = self.Options.MinRankCategory
+	local MaximumCategory = self.Options.MaxRankCategory
 
 	-- We need to find which category the recipe is in based on its RankingRange and the player's rank.
-	local RecipeCategory = BitesCookBook:GetCategoryInRange(RankingRange, BitesCookBook.CookingSkillRank)
+	local RecipeCategory = self:GetCategoryInRange(RankingRange, self.CookingSkillRank)
 	if RecipeCategory >= MinimumCategory and RecipeCategory <= MaximumCategory then
 		return true
 	end
 
 	return false
+end
+
+function BitesCookBook:GetCategoryInRange(RankingRange, Rank)
+	for i = 1, 4 do
+		if Rank > RankingRange[5 -i] then -- The list goes from red to gray.
+			return i
+		end
+	end
+	-- If the player's rank is higher than the highest rank, we return 5 i.e. red.
+	return 5
+end
+
+function BitesCookBook:GetCraftableColor(craftableID)
+	local RankingRange = self.Recipes[craftableID]["Range"] -- Range of ranks when recipe level-up changes.
+	local MyRank = self.CookingSkillRank
+
+	local ShouldGrayTheUnavailable = self.Options.GrayHighCraftables
+	if ShouldGrayTheUnavailable and MyRank < RankingRange[1] then
+		return self.TextColors["Gray"] -- Gray color.
+	end
+
+	local ShouldColorByRank = self.Options.ColorCraftableByRank
+	if ShouldColorByRank then
+		return "|r".. self:GetColorInRange(RankingRange, MyRank)
+	end
+
+	-- Default color is white. |r is needed to reset the color and prevents leaks.
+	return "|r".. self.TextColors["White"]
+end
+
+function BitesCookBook:GetColorInRange(range, rank)
+	if rank < range[1] then
+		return self.TextColors["Red"]
+	end
+	if rank < range[2] then
+		return self.TextColors["Orange"]
+	end
+	if rank < range[3] then
+		return self.TextColors["Yellow"]
+	end
+	if rank < range[4] then
+		return self.TextColors["Green"]
+	end
+
+	return self.TextColors["Gray"]
 end
