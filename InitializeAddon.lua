@@ -34,18 +34,23 @@ function BitesCookBook:ADDON_LOADED(eventName, addonName)
 	self:CacheItems(self.Recipes)
 	self:HookTooltips()
 	self:RegisterEvent("CHAT_MSG_SKILL") -- test this
-	self:RegisterEvent("PLAYER_ENTERING_WORLD")
+	self:RegisterEvent("SKILL_LINES_CHANGED")
 	self:UnregisterEvent(eventName) -- Finally, the addon-loading event is unregistered.
 end
 
-function BitesCookBook:PLAYER_ENTERING_WORLD(eventName)
+function BitesCookBook:SKILL_LINES_CHANGED(eventName)
 	eventName = eventName or event
+
+	-- Skill lines are not ready yet
+	if GetNumSkillLines() == 0 then
+		return
+	end
+
+	-- Unregister SKILL_LINES_CHANGED to prevent infinite loop
+	self:UnregisterEvent(eventName)
 
 	-- Get the player's cooking skill level.
 	self.CookingSkillRank = self:GetSkillLevel("Cooking")
-
-	-- The player-entering-world event is unregistered.
-	self:UnregisterEvent(eventName)
 end
 
 function BitesCookBook:CHAT_MSG_SKILL(eventName)
