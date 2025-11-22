@@ -3,6 +3,7 @@ BitesCookBook.Options = {
 	ShowCraftableFirstRank = true, -- In the reagent tooltip, show the first rank of the craftable item.
 	ShowCraftableRankRange = true, -- In the reagent tooltip, also show the subsequent rank range of the craftable item.
 	ShowCraftableFaction = true, -- Show the faction the recipe belongs to.
+	ShowCraftableIcon = true, -- In the reagent tooltip, show the icon of the craftable item.
 	GrayHighCraftables = false, -- In the reagent tooltip, gray out the craftable if it is too high rank.
 	ColorCraftableByRank = true, -- In the reagent tooltip, color the craftable item by rank.
 	MinRankCategory = 1, -- The minimum rank category to show in the reagent tooltip.

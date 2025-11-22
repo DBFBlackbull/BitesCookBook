@@ -13,7 +13,37 @@ local function hooksecurefunc(arg1, arg2, arg3)
 	end
 end
 
+-- Setup to prevent memory leaks from creating new textures on every run
+local iconPool = {}
+local activeIcons = {}
+local function acquireIcon(tooltip)
+	local icon = table.remove(iconPool)
+	if not icon then
+		icon = tooltip:CreateTexture(nil, "ARTWORK")
+	end
+
+	icon:SetParent(tooltip)
+	icon:Show()
+
+	table.insert(activeIcons, icon)
+
+	return icon
+end
+
+local function hideIcons()
+	local icon = table.remove(activeIcons)
+	while icon do
+		icon:Hide()
+		table.insert(iconPool, icon)
+
+		icon = table.remove(activeIcons)
+	end
+end
+
 function BitesCookBook:AddIngredientRecipes(tooltip, itemLink)
+	-- Hide icons from last run
+	hideIcons()
+
 	--- Shows all available recipes for that ingredient.
 	local itemID = self:GetItemIDFromLink(itemLink)
 	if not itemID then
@@ -27,18 +57,21 @@ function BitesCookBook:AddIngredientRecipes(tooltip, itemLink)
 	for _, recipeID in ipairs(self.CraftablesForReagent[itemID]) do
 		if self:IsRecipeInRange(recipeID) then
 			local recipe = self.Recipes[recipeID]
-			local craftableName = self:GetItemNameByID(recipeID) or recipe["Name"]
+			local craftableName, _, _, _, _, _, _, _, craftableIcon = GetItemInfo(recipeID)
+			craftableName = craftableName or recipeID
+			craftableIcon = craftableIcon or "Interface\\Icons\\INV_Misc_QuestionMark"
 			local craftableColor = self:GetCraftableColor(recipeID)
 
 			-- Show the recipe icon if the option is enabled.
-			local text = "    " .. craftableColor .. craftableName.. FONT_COLOR_CODE_CLOSE
+			local text = "        " .. craftableColor .. craftableName.. FONT_COLOR_CODE_CLOSE
 
 			if self.Options.ShowCraftableFirstRank then
 				local RankingRange = recipe["Range"]
 				local FirstRangeText = RankingRange[1] > 1 and RankingRange[1] or self.L["Starter"]
 
 				-- When the first rank is 1, it's a starter recipe.
-				text = text .. self.TextColors["White"] .. " (" .. self.TextColors["Orange"] .. FirstRangeText
+				text = text .. self.TextColors["White"] .. " ("
+				text = text .. self.TextColors["Orange"] .. FirstRangeText
 
 				if self.Options.ShowCraftableRankRange then
 					text = text .. " " .. self.TextColors["Yellow"] .. RankingRange[2] .. " ".. self.TextColors["Green"].. RankingRange[3] .. " ".. self.TextColors["Gray"].. RankingRange[4]
@@ -50,7 +83,7 @@ function BitesCookBook:AddIngredientRecipes(tooltip, itemLink)
 				text = text .. self.TextColors["White"] .. " (" .. recipe["Faction"] .. ")"
 			end
 
-			table.insert(recipes, text)
+			table.insert(recipes, {text = text, icon = craftableIcon})
 		end
 	end
 
@@ -60,7 +93,16 @@ function BitesCookBook:AddIngredientRecipes(tooltip, itemLink)
 
 	tooltip:AddLine(self.L["IngredientFor:"])
 	for _, recipe in ipairs(recipes) do
-		tooltip:AddLine(recipe)
+		tooltip:AddLine(recipe.text)
+		if self.Options.ShowCraftableIcon then
+			local line = _G[tooltip:GetName().."TextLeft"..tooltip:NumLines()]
+			local _, size = line:GetFont()
+			local icon = acquireIcon(tooltip)
+			icon:SetTexture(recipe.icon)
+			icon:SetWidth(size)
+			icon:SetHeight(size)
+			icon:SetPoint("RIGHT", line, "LEFT", 22, 0)
+		end
 	end
 
 	tooltip:Show()
@@ -68,6 +110,9 @@ end
 
 
 function BitesCookBook:HookTooltips()
+	hooksecurefunc(ItemRefTooltip, "Hide", hideIcons)
+	hooksecurefunc(GameTooltip, "Hide", hideIcons)
+
 	hooksecurefunc("ChatFrame_OnHyperlinkShow", function(itemLink, text, button)
 		BitesCookBook:AddIngredientRecipes(ItemRefTooltip, itemLink)
 	end)
@@ -88,7 +133,7 @@ function BitesCookBook:HookTooltips()
 
 	-- Hook bank tooltip
 	hooksecurefunc(GameTooltip, "SetInventoryItem", function(tip, unit, slot)
-		BitesCookBook:AddIngredientRecipes(GameTooltip, GetInventoryItemCount(unit, slot))
+		BitesCookBook:AddIngredientRecipes(GameTooltip, GetInventoryItemLink(unit, slot))
 	end)
 
 	-- Hook hyper links, used for BankItems and Bagnon_Forever addons
@@ -162,13 +207,6 @@ function BitesCookBook:GetItemIDFromLink(itemLink)
 	return tonumber(itemID)
 end
 
-function BitesCookBook:GetItemNameByID(itemID)
-	local itemName = GetItemInfo(itemID)
-
-	-- Sometimes WoW won't find the name immediately.
-	return itemName or tostring(itemID)
-end
-
 function BitesCookBook:CheckModifierKey()
 	local ModifierValue = BitesCookBook.Options.HasModifier
 	if ModifierValue ~= 0 and ModifierValue ~= 1 then
@@ -222,11 +260,11 @@ function BitesCookBook:GetCraftableColor(craftableID)
 
 	local ShouldColorByRank = self.Options.ColorCraftableByRank
 	if ShouldColorByRank then
-		return "|r".. self:GetColorInRange(RankingRange, MyRank)
+		return self:GetColorInRange(RankingRange, MyRank)
 	end
 
-	-- Default color is white. |r is needed to reset the color and prevents leaks.
-	return "|r".. self.TextColors["White"]
+	-- Default color is white.
+	return self.TextColors["White"]
 end
 
 function BitesCookBook:GetColorInRange(range, rank)
