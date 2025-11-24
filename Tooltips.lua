@@ -168,7 +168,7 @@ function BitesCookBook:HookTooltips()
 		end
 
 		local itemName = GetSendMailItem(attachmentIndex)
-		BitesCookBook:AddIngredientRecipes(GameTooltip, GetItemLinkByName(itemName))
+		BitesCookBook:AddIngredientRecipes(GameTooltip, BitesCookBook:GetItemLinkByName(itemName))
 	end)
 end
 
