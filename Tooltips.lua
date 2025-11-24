@@ -14,33 +14,39 @@ local function hooksecurefunc(arg1, arg2, arg3)
 end
 
 local indent = "    "
-local questionMarkIcon = "Interface\\Icons\\INV_Misc_QuestionMark"
-local wellFedIcon = "Interface\\Icons\\SPELL_Misc_Food" -- test this
+local iconPrefix = "Interface\\Icons\\"
+local questionMarkIcon = iconPrefix.."INV_Misc_QuestionMark"
+local wellFedIcon = iconPrefix.."SPELL_Misc_Food" -- test this
+local function iconOrFallback(icon, fallback)
+	if icon then
+		return iconPrefix..icon
+	end
 
-local BCB_Tooltip = getglobal("BitesCookBookTooltip") or CreateFrame("GameTooltip", "BitesCookBookTooltip", nil, "GameTooltipTemplate")
-local BCB_Prefix = "BitesCookBookTooltip"
-local function findBuff(itemLink, buffIcon)
+	return fallback
+end
+
+function BitesCookBook:FindBuff(itemLink, buffIcon)
 	if not itemLink then
 		return
 	end
 
-	BCB_Tooltip:ClearLines()
-	BCB_Tooltip:SetHyperlink(itemLink)
-	local MAX_LINES = BCB_Tooltip:NumLines()
+	self.Tooltip:ClearLines()
+	self.Tooltip:SetHyperlink(itemLink)
+	local MAX_LINES = self.Tooltip:NumLines()
 	for i = 1, MAX_LINES do
-		local lineText = getglobal(BCB_Prefix.."TextLeft"..i):GetText()
+		local lineText = getglobal(self.Prefix.."TextLeft"..i):GetText()
 		if lineText then
 			-- If you spend at least 10 seconds eating you will become well fed and gain 12 Stamina and Spirit for 15 min.
 			-- If you spend at least 10 seconds eating you will become well fed and gain 6 Mana every 5 seconds for 15 min.
-			local _, _, wellFed = string.find(lineText, "well fed and gain (.-)%.")
+			local _, _, wellFed = string.find(lineText, "well fed and gain (.-%.)")
 			if wellFed then
-				return wellFed, buffIcon or wellFedIcon -- Sagefish Delight and Dirge's Kickin' Chimaerok Chops has custom icons
+				return wellFed, iconOrFallback(buffIcon, wellFedIcon) -- Sagefish Delight and Dirge's Kickin' Chimaerok Chops has custom icons
 			end
 
 			-- Occasionally belch flame at enemies struck in melee for the next 10 min.
-			local _, _, dragonBreathChili = string.find(lineText, "(Occasionally belch flame at enemies struck in melee for the next 10 min)%.")
+			local _, _, dragonBreathChili = string.find(lineText, "(Occasionally belch flame at enemies struck in melee for the next 10 min%.)")
 			if dragonBreathChili then
-				return dragonBreathChili, buffIcon or questionMarkIcon
+				return dragonBreathChili, iconOrFallback(buffIcon, questionMarkIcon)
 			end
 
 			-- Also increases your Stamina by 10 for 10 min.
@@ -48,17 +54,17 @@ local function findBuff(itemLink, buffIcon)
 			-- Also increases your Intellect by 10 for 10 min.
 			-- Also increases your Spirit by 10 for 10 min.
 			-- If you eat for 10 seconds will also increase your Agility by 10 for 10 min.
-			local _, _, fishStat, fishAmount, fishText = string.find(lineText, "[Aa]lso increases your (.*) by (%d+) (for %d+ min)%.")
+			local _, _, fishStat, fishAmount, fishText = string.find(lineText, "[Aa]lso increases? your (.*) by (%d+) (for %d+ min%.)")
 			if fishStat and fishAmount and fishText then
 				local fishBuff = format("%s %s %s", fishAmount, fishStat, fishText) -- format buff like Well Fed
-				return fishBuff, buffIcon or questionMarkIcon
+				return fishBuff, iconOrFallback(buffIcon, questionMarkIcon)
 			end
 
 			-- Also restores 8 Mana every 5 seconds for 10 min.
 			-- Also restores 6 health every 5 seconds for 10 min.
-			local _, _, fishRegen = string.find(lineText, "[Aa]lso restores (.*)%.")
+			local _, _, fishRegen = string.find(lineText, "[Aa]lso restores (.-%.)")
 			if fishRegen then
-				return fishRegen, buffIcon or questionMarkIcon
+				return fishRegen, iconOrFallback(buffIcon, questionMarkIcon)
 			end
 		end
 	end
@@ -161,7 +167,7 @@ function BitesCookBook:AddIngredientRecipes(tooltip, itemLink)
 		end
 
 		if self.Options.ShowCraftableBuff then
-			local buff, buffIcon = findBuff(recipe.link, recipe.buffIcon)
+			local buff, buffIcon = self:FindBuff(recipe.link, recipe.buffIcon)
 			if buff then
 				tooltip:AddLine(indent .. indent .. buff)
 				if self.Options.ShowCraftableIcon then

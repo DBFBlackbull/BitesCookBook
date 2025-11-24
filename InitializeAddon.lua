@@ -13,6 +13,10 @@ BitesCookBook.Options = {
 	ModifierKey = "SHIFT", -- SHIFT, ALT, CTRL
 }
 
+BitesCookBook.Prefix = "BitesCookBookTooltip"
+BitesCookBook.Tooltip = getglobal(BitesCookBook.Prefix) or CreateFrame("GameTooltip", BitesCookBook.Prefix, nil, "GameTooltipTemplate")
+BitesCookBook.Tooltip:SetOwner(WorldFrame, "ANCHOR_NONE")
+
 function BitesCookBook:Print(string)
 	DEFAULT_CHAT_FRAME:AddMessage("[BitesCookBook] " .. tostring(string))
 end
@@ -77,6 +81,12 @@ function BitesCookBook:CacheItems(recipeList)
 	-- We load every item in the recipe and reagent lists to cache their names.
 	for itemID, _ in pairs(recipeList) do
 		local itemName, itemLink, itemQuality = GetItemInfo(itemID)
+		if not itemName or not itemLink or not itemQuality then
+			-- Query server for the item
+			BitesCookBook.Tooltip:SetHyperlink("item:"..itemID..":0:0:0")
+		end
+
+		itemName, itemLink, itemQuality = GetItemInfo(itemID)
 		if itemName and itemLink and itemQuality then
 			local _, _, _, hex = GetItemQualityColor(tonumber(itemQuality))
 			local hyperLink = hex.. "|H".. itemLink .."|h["..itemName.."]|h" .. FONT_COLOR_CODE_CLOSE
