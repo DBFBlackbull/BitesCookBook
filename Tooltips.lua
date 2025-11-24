@@ -13,6 +13,57 @@ local function hooksecurefunc(arg1, arg2, arg3)
 	end
 end
 
+local indent = "    "
+local questionMarkIcon = "Interface\\Icons\\INV_Misc_QuestionMark"
+local wellFedIcon = "Interface\\Icons\\SPELL_Misc_Food" -- test this
+
+local BCB_Tooltip = getglobal("BitesCookBookTooltip") or CreateFrame("GameTooltip", "BitesCookBookTooltip", nil, "GameTooltipTemplate")
+local BCB_Prefix = "BitesCookBookTooltip"
+local function findBuff(itemLink, buffIcon)
+	if not itemLink then
+		return
+	end
+
+	BCB_Tooltip:ClearLines()
+	BCB_Tooltip:SetHyperlink(itemLink)
+	local MAX_LINES = BCB_Tooltip:NumLines()
+	for i = 1, MAX_LINES do
+		local lineText = getglobal(BCB_Prefix.."TextLeft"..i):GetText()
+		if lineText then
+			-- If you spend at least 10 seconds eating you will become well fed and gain 12 Stamina and Spirit for 15 min.
+			-- If you spend at least 10 seconds eating you will become well fed and gain 6 Mana every 5 seconds for 15 min.
+			local _, _, wellFed = string.find(lineText, "well fed and gain (.-)%.")
+			if wellFed then
+				return wellFed, buffIcon or wellFedIcon -- Sagefish Delight and Dirge's Kickin' Chimaerok Chops has custom icons
+			end
+
+			-- Occasionally belch flame at enemies struck in melee for the next 10 min.
+			local _, _, dragonBreathChili = string.find(lineText, "(Occasionally belch flame at enemies struck in melee for the next 10 min)%.")
+			if dragonBreathChili then
+				return dragonBreathChili, buffIcon or questionMarkIcon
+			end
+
+			-- Also increases your Stamina by 10 for 10 min.
+			-- Also increases your Stamina by 10 for 10 min.
+			-- Also increases your Intellect by 10 for 10 min.
+			-- Also increases your Spirit by 10 for 10 min.
+			-- If you eat for 10 seconds will also increase your Agility by 10 for 10 min.
+			local _, _, fishStat, fishAmount, fishText = string.find(lineText, "[Aa]lso increases your (.*) by (%d+) (for %d+ min)%.")
+			if fishStat and fishAmount and fishText then
+				local fishBuff = format("%s %s %s", fishAmount, fishStat, fishText) -- format buff like Well Fed
+				return fishBuff, buffIcon or questionMarkIcon
+			end
+
+			-- Also restores 8 Mana every 5 seconds for 10 min.
+			-- Also restores 6 health every 5 seconds for 10 min.
+			local _, _, fishRegen = string.find(lineText, "[Aa]lso restores (.*)%.")
+			if fishRegen then
+				return fishRegen, buffIcon or questionMarkIcon
+			end
+		end
+	end
+end
+
 -- Setup to prevent memory leaks from creating new textures on every run
 local iconPool = {}
 local activeIcons = {}
@@ -40,6 +91,17 @@ local function hideIcons()
 	end
 end
 
+local function addIcon(tooltip, iconTexture, xOffset)
+	local line = _G[tooltip:GetName().."TextLeft"..tooltip:NumLines()]
+	line:SetText(indent .. line:GetText()) -- Indent to make room for the icon
+	local _, size = line:GetFont()
+	local icon = acquireIcon(tooltip)
+	icon:SetTexture(iconTexture)
+	icon:SetWidth(size)
+	icon:SetHeight(size)
+	icon:SetPoint("RIGHT", line, "LEFT", xOffset, 0)
+end
+
 function BitesCookBook:AddIngredientRecipes(tooltip, itemLink)
 	-- Hide icons from last run
 	hideIcons()
@@ -57,13 +119,13 @@ function BitesCookBook:AddIngredientRecipes(tooltip, itemLink)
 	for _, recipeID in ipairs(self.CraftablesForReagent[itemID]) do
 		if self:IsRecipeInRange(recipeID) then
 			local recipe = self.Recipes[recipeID]
-			local craftableName, _, _, _, _, _, _, _, craftableIcon = GetItemInfo(recipeID)
+			local craftableName, craftableLink, _, _, _, _, _, _, craftableIcon = GetItemInfo(recipeID)
 			craftableName = craftableName or recipeID
-			craftableIcon = craftableIcon or "Interface\\Icons\\INV_Misc_QuestionMark"
+			craftableIcon = craftableIcon or questionMarkIcon
 			local craftableColor = self:GetCraftableColor(recipeID)
 
 			-- Show the recipe icon if the option is enabled.
-			local text = "        " .. craftableColor .. craftableName.. FONT_COLOR_CODE_CLOSE
+			local text = craftableColor .. craftableName.. FONT_COLOR_CODE_CLOSE
 
 			if self.Options.ShowCraftableFirstRank then
 				local RankingRange = recipe["Range"]
@@ -83,7 +145,7 @@ function BitesCookBook:AddIngredientRecipes(tooltip, itemLink)
 				text = text .. self.TextColors["White"] .. " (" .. recipe["Faction"] .. ")"
 			end
 
-			table.insert(recipes, {text = text, icon = craftableIcon})
+			table.insert(recipes, {text = text, icon = craftableIcon, link = craftableLink, buffIcon = recipe["BuffIcon"]})
 		end
 	end
 
@@ -93,15 +155,19 @@ function BitesCookBook:AddIngredientRecipes(tooltip, itemLink)
 
 	tooltip:AddLine(self.L["IngredientFor:"])
 	for _, recipe in ipairs(recipes) do
-		tooltip:AddLine(recipe.text)
+		tooltip:AddLine(indent .. recipe.text)
 		if self.Options.ShowCraftableIcon then
-			local line = _G[tooltip:GetName().."TextLeft"..tooltip:NumLines()]
-			local _, size = line:GetFont()
-			local icon = acquireIcon(tooltip)
-			icon:SetTexture(recipe.icon)
-			icon:SetWidth(size)
-			icon:SetHeight(size)
-			icon:SetPoint("RIGHT", line, "LEFT", 22, 0)
+			addIcon(tooltip, recipe.icon, 22)
+		end
+
+		if self.Options.ShowCraftableBuff then
+			local buff, buffIcon = findBuff(recipe.link, recipe.buffIcon)
+			if buff then
+				tooltip:AddLine(indent .. indent .. buff)
+				if self.Options.ShowCraftableIcon then
+					addIcon(tooltip, buffIcon, 33)
+				end
+			end
 		end
 	end
 
