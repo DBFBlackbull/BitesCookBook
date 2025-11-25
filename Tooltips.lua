@@ -54,12 +54,11 @@ end
 
 local indent = "    "
 
-function BitesCookBook:AddIngredientRecipes(tooltip)
+function BitesCookBook:AddIngredientRecipes(itemLink)
 	-- Hide icons from last run
 	hideIcons()
 
 	--- Shows all available recipes for that ingredient.
-	local _, itemLink = tooltip:GetItem()
 	local itemID = self:GetItemIDFromLink(itemLink)
 	if not itemID then
 		return
@@ -130,51 +129,62 @@ function BitesCookBook:HookTooltips()
 	hooksecurefunc(GameTooltip, "Hide", hideIcons)
 
 	hooksecurefunc("ChatFrame_OnHyperlinkShow", function(itemLink, text, button)
-		BitesCookBook:AddIngredientRecipes(ItemRefTooltip)
+		BitesCookBook:AddIngredientRecipes(ItemRefTooltip, itemLink)
 	end)
 
 	-- Hook loot tooltip
 	hooksecurefunc(GameTooltip, "SetLootItem", function(tip, lootIndex)
-		BitesCookBook:AddIngredientRecipes(GameTooltip)
+		BitesCookBook:AddIngredientRecipes(GameTooltip, GetLootSlotLink(lootIndex))
 	end)
 
 	hooksecurefunc(GameTooltip, "SetLootRollItem", function(tip, lootIndex)
-		BitesCookBook:AddIngredientRecipes(GameTooltip)
+		BitesCookBook:AddIngredientRecipes(GameTooltip, GetLootRollItemLink(lootIndex))
 	end)
 
 	-- Hook bag tooltip
 	hooksecurefunc(GameTooltip, "SetBagItem", function(tip, bag, slot)
-		BitesCookBook:AddIngredientRecipes(GameTooltip)
+		BitesCookBook:AddIngredientRecipes(GameTooltip, GetContainerItemLink(bag, slot))
 	end)
 
 	-- Hook bank tooltip
 	hooksecurefunc(GameTooltip, "SetInventoryItem", function(tip, unit, slot)
-		BitesCookBook:AddIngredientRecipes(GameTooltip)
+		BitesCookBook:AddIngredientRecipes(GameTooltip, GetInventoryItemLink(unit, slot))
 	end)
 
 	-- Hook hyper links, used for BankItems and Bagnon_Forever addons
 	hooksecurefunc(GameTooltip, "SetHyperlink", function(tip, itemLink, count)
-		BitesCookBook:AddIngredientRecipes(GameTooltip)
+		BitesCookBook:AddIngredientRecipes(GameTooltip, itemLink)
 	end)
 
 	-- Hook player trade tooltip
 	hooksecurefunc(GameTooltip, "SetTradePlayerItem", function(self, index)
-		BitesCookBook:AddIngredientRecipes(GameTooltip)
+		BitesCookBook:AddIngredientRecipes(GameTooltip, GetTradePlayerItemLink(index))
 	end)
 
 	-- Hook target trade tooltip
 	hooksecurefunc(GameTooltip, "SetTradeTargetItem", function(self, index)
+		BitesCookBook:AddIngredientRecipes(GameTooltip, GetTradeTargetItemLink(index))
 		BitesCookBook:AddIngredientRecipes(GameTooltip)
 	end)
 
 	-- Hook inbox items
 	hooksecurefunc(GameTooltip, "SetInboxItem", function(self, mailIndex, attachmentIndex)
-		BitesCookBook:AddIngredientRecipes(GameTooltip)
+		if GetInboxItemLink then
+			return BitesCookBook:AddIngredientRecipes(GameTooltip, GetInboxItemLink(mailIndex, attachmentIndex))
+		end
+
+		local itemName = GetInboxItem(mailIndex, attachmentIndex)
+		BitesCookBook:AddIngredientRecipes(GameTooltip, BitesCookBook:GetItemLinkByName(itemName))
 	end)
 
 	-- Hook send mail items
 	hooksecurefunc(GameTooltip, "SetSendMailItem", function(self, attachmentIndex)
-		BitesCookBook:AddIngredientRecipes(GameTooltip)
+		if GetSendMailItemLink then
+			return BitesCookBook:AddIngredientRecipes(GameTooltip, GetSendMailItemLink(attachmentIndex))
+		end
+
+		local itemName = GetSendMailItem(attachmentIndex)
+		BitesCookBook:AddIngredientRecipes(GameTooltip, BitesCookBook:GetItemLinkByName(itemName))
 	end)
 end
 

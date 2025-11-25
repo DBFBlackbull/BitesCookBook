@@ -125,7 +125,7 @@ function BitesCookBook:SetBuff(recipe)
 	end
 end
 
---BitesCookBook.ItemCache = {}
+BitesCookBook.ItemCache = {}
 function BitesCookBook:CacheItems()
 	-- We load every item in the recipe and reagent lists to cache their names.
 	local cached = 0
@@ -133,26 +133,16 @@ function BitesCookBook:CacheItems()
 	for itemID, recipe in pairs(BitesCookBook_RecipesClassic) do
 		self.Tooltip:ClearLines()
 		self.Tooltip:SetHyperlink("item:"..itemID..":0:0:0") -- Queries the server for the item if not found in the WDB cache
-		local itemName, itemLink = self.Tooltip:GetItem()
-		self:Print(format("tooltip:GetItem name %s link %s lines %d", tostring(itemName), tostring(itemLink), self.Tooltip:NumLines())) -- test
 
-		local itemName1, itemLink1 = GetItemInfo(itemID) -- Check WDB cache
-		self:Print(format("GetItemInfo name %s link %s", tostring(itemName1), tostring(itemLink1))) -- test
-
-		if itemName and itemLink and self.Tooltip:NumLines() > 0 then
+		local itemName, itemLink, itemQuality = GetItemInfo(itemID) -- Check WDB cache
+		if itemName and itemLink and itemQuality then
+			local _, _, _, hex = GetItemQualityColor(tonumber(itemQuality))
+			local hyperLink = hex.. "|H".. itemLink .."|h["..itemName.."]|h" .. FONT_COLOR_CODE_CLOSE
+			self.ItemCache[itemName] = hyperLink
 			self:SetBuff(recipe)
+
 			cached = cached + 1
 		end
-
-		--local itemName, itemLink, itemQuality = GetItemInfo(itemID) -- Check WDB cache
-		--if itemName and itemLink and itemQuality then
-		--	--local _, _, _, hex = GetItemQualityColor(tonumber(itemQuality))
-		--	--local hyperLink = hex.. "|H".. itemLink .."|h["..itemName.."]|h" .. FONT_COLOR_CODE_CLOSE
-		--	--self.ItemCache[itemName] = hyperLink
-		--
-		--
-		--	cached = cached + 1
-		--end
 
 		total = total + 1
 	end
@@ -163,21 +153,22 @@ function BitesCookBook:CacheItems()
 	end
 end
 
---function BitesCookBook:GetItemLinkByName(name)
---	if self.ItemCache[name] then
---		return self.ItemCache[name]
---	end
---
---	for itemID = 1, 25818 do
---		local itemName, itemLink, itemQuality = GetItemInfo(itemID)
---		if itemName == name and itemLink and itemQuality then
---			local _, _, _, hex = GetItemQualityColor(tonumber(itemQuality))
---			local hyperLink = hex.. "|H".. itemLink .."|h["..itemName.."]|h" .. FONT_COLOR_CODE_CLOSE
---			self.ItemCache[name] = hyperLink
---			return hyperLink
---		end
---	end
---end
+local LAST_ITEM_IN_CLASSIC = 24283
+function BitesCookBook:GetItemLinkByName(name)
+	if self.ItemCache[name] then
+		return self.ItemCache[name]
+	end
+
+	for itemID = 1, LAST_ITEM_IN_CLASSIC do
+		local itemName, itemLink, itemQuality = GetItemInfo(itemID)
+		if itemName == name and itemLink and itemQuality then
+			local _, _, _, hex = GetItemQualityColor(tonumber(itemQuality))
+			local hyperLink = hex.. "|H".. itemLink .."|h["..itemName.."]|h" .. FONT_COLOR_CODE_CLOSE
+			self.ItemCache[name] = hyperLink
+			return hyperLink
+		end
+	end
+end
 
 local skippedIngredients = {
 	[2678] = true, -- Mild Spices
