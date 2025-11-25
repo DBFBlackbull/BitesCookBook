@@ -135,6 +135,10 @@ function BitesCookBook:CacheItems()
 		self.Tooltip:SetHyperlink("item:"..itemID..":0:0:0") -- Queries the server for the item if not found in the WDB cache
 		local itemName, itemLink = self.Tooltip:GetItem()
 		self:Print(format("tooltip:GetItem name %s link %s lines %d", tostring(itemName), tostring(itemLink), self.Tooltip:NumLines())) -- test
+
+		local itemName1, itemLink1 = GetItemInfo(itemID) -- Check WDB cache
+		self:Print(format("GetItemInfo name %s link %s", tostring(itemName1), tostring(itemLink1))) -- test
+
 		if itemName and itemLink and self.Tooltip:NumLines() > 0 then
 			self:SetBuff(recipe)
 			cached = cached + 1
