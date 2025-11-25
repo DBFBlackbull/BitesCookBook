@@ -13,18 +13,21 @@ BitesCookBook.Options = {
 	ModifierKey = "SHIFT", -- SHIFT, ALT, CTRL
 }
 
-BitesCookBook.Prefix = "BitesCookBookTooltip"
-BitesCookBook.Tooltip = getglobal(BitesCookBook.Prefix) or CreateFrame("GameTooltip", BitesCookBook.Prefix, nil, "GameTooltipTemplate")
+BitesCookBook.Tooltip = getglobal("BitesCookBookTooltip") or CreateFrame("GameTooltip", "BitesCookBookTooltip", nil, "GameTooltipTemplate")
 BitesCookBook.Tooltip:SetOwner(WorldFrame, "ANCHOR_NONE")
 
 function BitesCookBook:Print(string)
-	DEFAULT_CHAT_FRAME:AddMessage("[BitesCookBook] " .. tostring(string))
+	DEFAULT_CHAT_FRAME:AddMessage("[BitesCookBook]: " .. tostring(string))
 end
 
 function BitesCookBook:ADDON_LOADED(eventName, addonName)
 	eventName = eventName or event
 	addonName = addonName or arg1
 	if addonName ~= "BitesCookBook" then return end
+
+	-- We should cache all the item names by loading the items once.
+	-- This prevent the tooltips from appearing empty when the player first opens them.
+	self:CacheItems()
 
 	--BitesCookBook:ConfigureSavedVariables() -- Set or load the saved variables.
 	--BitesCookBook:InitializeOptionsMenu() -- Build the options menu.
@@ -35,9 +38,6 @@ function BitesCookBook:ADDON_LOADED(eventName, addonName)
 	-- We keep track of the player's locale/language.
 	self.L = (BitesCookBook.Locales[GetLocale()] or BitesCookBook.Locales["enUS"])
 
-	-- We should cache all the item names by loading the items ones.
-	-- This prevent the tooltips from appearing empty when the player first opens them.
-	self:CacheItems(self.Recipes)
 	self:HookTooltips()
 	self:RegisterEvent("CHAT_MSG_SKILL") -- test this
 	self:RegisterEvent("SKILL_LINES_CHANGED")
@@ -76,40 +76,104 @@ BitesCookBook:SetScript("OnEvent", BitesCookBook.OnEvent)
 -- Helper functions
 --------------------------------------------------------------------------------
 
-BitesCookBook.ItemCache = {}
-function BitesCookBook:CacheItems(recipeList)
+local wellFedIcon = "Interface\\Icons\\Spell_Misc_Food"
+
+function BitesCookBook:SetBuff(recipe)
+	local MAX_LINES = self.Tooltip:NumLines()
+	for i = 1, MAX_LINES do
+		local lineText = getglobal(self.Tooltip:GetName().."TextLeft"..i):GetText()
+		if lineText then
+			-- If you spend at least 10 seconds eating you will become well fed and gain 12 Stamina and Spirit for 15 min.
+			-- If you spend at least 10 seconds eating you will become well fed and gain 6 Mana every 5 seconds for 15 min.
+			local _, _, wellFed = string.find(lineText, "well fed and gain (.-%.)")
+			if wellFed then
+				recipe.Buff = wellFed
+				recipe.BuffIcon = recipe.BuffIcon or wellFedIcon
+				return
+			end
+
+			-- Occasionally belch flame at enemies struck in melee for the next 10 min.
+			local _, _, dragonBreathChili = string.find(lineText, "(Occasionally belch flame at enemies struck in melee for the next 10 min%.)")
+			if dragonBreathChili then
+				recipe.Buff = dragonBreathChili
+				-- buff icon already set
+				return
+			end
+
+			-- Also increases your Stamina by 10 for 10 min.
+			-- Also increases your Stamina by 10 for 10 min.
+			-- Also increases your Intellect by 10 for 10 min.
+			-- Also increases your Spirit by 10 for 10 min.
+			-- If you eat for 10 seconds will also increase your Agility by 10 for 10 min.
+			local _, _, fishStat, fishAmount, fishText = string.find(lineText, "[Aa]lso increases? your (.*) by (%d+) (for %d+ min%.)")
+			if fishStat and fishAmount and fishText then
+				local fishBuff = format("%s %s %s", fishAmount, fishStat, fishText) -- format buff like Well Fed
+				recipe.Buff = fishBuff
+				-- buff icon already set
+				return
+			end
+
+			-- Also restores 8 Mana every 5 seconds for 10 min.
+			-- Also restores 6 health every 5 seconds for 10 min.
+			local _, _, fishRegen = string.find(lineText, "[Aa]lso restores (.-%.)")
+			if fishRegen then
+				recipe.Buff = fishRegen
+				-- buff icon already set
+				return
+			end
+		end
+	end
+end
+
+--BitesCookBook.ItemCache = {}
+function BitesCookBook:CacheItems()
 	-- We load every item in the recipe and reagent lists to cache their names.
-	for itemID, _ in pairs(recipeList) do
-		local itemName, itemLink, itemQuality = GetItemInfo(itemID)
-		if not itemName or not itemLink or not itemQuality then
-			-- Query server for the item
-			BitesCookBook.Tooltip:SetHyperlink("item:"..itemID..":0:0:0")
+	local cached = 0
+	local total = 0
+	for itemID, recipe in pairs(BitesCookBook_RecipesClassic) do
+		self.Tooltip:ClearLines()
+		self.Tooltip:SetHyperlink("item:"..itemID..":0:0:0") -- Queries the server for the item if not found in the WDB cache
+		local itemName, itemLink = self.Tooltip:GetItem()
+		self:Print(format("tooltip:GetItem name %s link %s lines %d", tostring(itemName), tostring(itemLink), self.Tooltip:NumLines())) -- test
+		if itemName and itemLink and self.Tooltip:NumLines() > 0 then
+			self:SetBuff(recipe)
+			cached = cached + 1
 		end
 
-		itemName, itemLink, itemQuality = GetItemInfo(itemID)
-		if itemName and itemLink and itemQuality then
-			local _, _, _, hex = GetItemQualityColor(tonumber(itemQuality))
-			local hyperLink = hex.. "|H".. itemLink .."|h["..itemName.."]|h" .. FONT_COLOR_CODE_CLOSE
-			self.ItemCache[itemName] = hyperLink
-		end
+		--local itemName, itemLink, itemQuality = GetItemInfo(itemID) -- Check WDB cache
+		--if itemName and itemLink and itemQuality then
+		--	--local _, _, _, hex = GetItemQualityColor(tonumber(itemQuality))
+		--	--local hyperLink = hex.. "|H".. itemLink .."|h["..itemName.."]|h" .. FONT_COLOR_CODE_CLOSE
+		--	--self.ItemCache[itemName] = hyperLink
+		--
+		--
+		--	cached = cached + 1
+		--end
+
+		total = total + 1
+	end
+
+	self:Print(format("Cached %d / %d recipes", cached, total))
+	if cached < total then
+		self:Print("Some recipes were not cached. Please reload your UI after a few minutes to try again.")
 	end
 end
 
-function BitesCookBook:GetItemLinkByName(name)
-	if self.ItemCache[name] then
-		return self.ItemCache[name]
-	end
-
-	for itemID = 1, 25818 do
-		local itemName, itemLink, itemQuality = GetItemInfo(itemID)
-		if itemName == name and itemLink and itemQuality then
-			local _, _, _, hex = GetItemQualityColor(tonumber(itemQuality))
-			local hyperLink = hex.. "|H".. itemLink .."|h["..itemName.."]|h" .. FONT_COLOR_CODE_CLOSE
-			self.ItemCache[name] = hyperLink
-			return hyperLink
-		end
-	end
-end
+--function BitesCookBook:GetItemLinkByName(name)
+--	if self.ItemCache[name] then
+--		return self.ItemCache[name]
+--	end
+--
+--	for itemID = 1, 25818 do
+--		local itemName, itemLink, itemQuality = GetItemInfo(itemID)
+--		if itemName == name and itemLink and itemQuality then
+--			local _, _, _, hex = GetItemQualityColor(tonumber(itemQuality))
+--			local hyperLink = hex.. "|H".. itemLink .."|h["..itemName.."]|h" .. FONT_COLOR_CODE_CLOSE
+--			self.ItemCache[name] = hyperLink
+--			return hyperLink
+--		end
+--	end
+--end
 
 local skippedIngredients = {
 	[2678] = true, -- Mild Spices

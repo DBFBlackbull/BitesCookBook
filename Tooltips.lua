@@ -13,63 +13,6 @@ local function hooksecurefunc(arg1, arg2, arg3)
 	end
 end
 
-local indent = "    "
-local iconPrefix = "Interface\\Icons\\"
-local questionMarkIcon = iconPrefix.."INV_Misc_QuestionMark"
-local wellFedIcon = iconPrefix.."SPELL_Misc_Food" -- test this
-local function iconOrFallback(icon, fallback)
-	if icon then
-		return iconPrefix..icon
-	end
-
-	return fallback
-end
-
-function BitesCookBook:FindBuff(itemLink, buffIcon)
-	if not itemLink then
-		return
-	end
-
-	self.Tooltip:ClearLines()
-	self.Tooltip:SetHyperlink(itemLink)
-	local MAX_LINES = self.Tooltip:NumLines()
-	for i = 1, MAX_LINES do
-		local lineText = getglobal(self.Prefix.."TextLeft"..i):GetText()
-		if lineText then
-			-- If you spend at least 10 seconds eating you will become well fed and gain 12 Stamina and Spirit for 15 min.
-			-- If you spend at least 10 seconds eating you will become well fed and gain 6 Mana every 5 seconds for 15 min.
-			local _, _, wellFed = string.find(lineText, "well fed and gain (.-%.)")
-			if wellFed then
-				return wellFed, iconOrFallback(buffIcon, wellFedIcon) -- Sagefish Delight and Dirge's Kickin' Chimaerok Chops has custom icons
-			end
-
-			-- Occasionally belch flame at enemies struck in melee for the next 10 min.
-			local _, _, dragonBreathChili = string.find(lineText, "(Occasionally belch flame at enemies struck in melee for the next 10 min%.)")
-			if dragonBreathChili then
-				return dragonBreathChili, iconOrFallback(buffIcon, questionMarkIcon)
-			end
-
-			-- Also increases your Stamina by 10 for 10 min.
-			-- Also increases your Stamina by 10 for 10 min.
-			-- Also increases your Intellect by 10 for 10 min.
-			-- Also increases your Spirit by 10 for 10 min.
-			-- If you eat for 10 seconds will also increase your Agility by 10 for 10 min.
-			local _, _, fishStat, fishAmount, fishText = string.find(lineText, "[Aa]lso increases? your (.*) by (%d+) (for %d+ min%.)")
-			if fishStat and fishAmount and fishText then
-				local fishBuff = format("%s %s %s", fishAmount, fishStat, fishText) -- format buff like Well Fed
-				return fishBuff, iconOrFallback(buffIcon, questionMarkIcon)
-			end
-
-			-- Also restores 8 Mana every 5 seconds for 10 min.
-			-- Also restores 6 health every 5 seconds for 10 min.
-			local _, _, fishRegen = string.find(lineText, "[Aa]lso restores (.-%.)")
-			if fishRegen then
-				return fishRegen, iconOrFallback(buffIcon, questionMarkIcon)
-			end
-		end
-	end
-end
-
 -- Setup to prevent memory leaks from creating new textures on every run
 local iconPool = {}
 local activeIcons = {}
@@ -101,6 +44,7 @@ local function addIcon(tooltip, iconTexture, xOffset)
 	local line = _G[tooltip:GetName().."TextLeft"..tooltip:NumLines()]
 	line:SetText(indent .. line:GetText()) -- Indent to make room for the icon
 	local _, size = line:GetFont()
+
 	local icon = acquireIcon(tooltip)
 	icon:SetTexture(iconTexture)
 	icon:SetWidth(size)
@@ -108,11 +52,14 @@ local function addIcon(tooltip, iconTexture, xOffset)
 	icon:SetPoint("RIGHT", line, "LEFT", xOffset, 0)
 end
 
-function BitesCookBook:AddIngredientRecipes(tooltip, itemLink)
+local indent = "    "
+
+function BitesCookBook:AddIngredientRecipes(tooltip)
 	-- Hide icons from last run
 	hideIcons()
 
 	--- Shows all available recipes for that ingredient.
+	local _, itemLink = tooltip:GetItem()
 	local itemID = self:GetItemIDFromLink(itemLink)
 	if not itemID then
 		return
@@ -125,9 +72,7 @@ function BitesCookBook:AddIngredientRecipes(tooltip, itemLink)
 	for _, recipeID in ipairs(self.CraftablesForReagent[itemID]) do
 		if self:IsRecipeInRange(recipeID) then
 			local recipe = self.Recipes[recipeID]
-			local craftableName, craftableLink, _, _, _, _, _, _, craftableIcon = GetItemInfo(recipeID)
-			craftableName = craftableName or recipeID
-			craftableIcon = craftableIcon or questionMarkIcon
+			local craftableName, _, _, _, _, _, _, _, craftableIcon = GetItemInfo(recipeID)
 			local craftableColor = self:GetCraftableColor(recipeID)
 
 			-- Show the recipe icon if the option is enabled.
@@ -151,7 +96,7 @@ function BitesCookBook:AddIngredientRecipes(tooltip, itemLink)
 				text = text .. self.TextColors["White"] .. " (" .. recipe["Faction"] .. ")"
 			end
 
-			table.insert(recipes, {text = text, icon = craftableIcon, link = craftableLink, buffIcon = recipe["BuffIcon"]})
+			table.insert(recipes, {text = text, icon = craftableIcon, data = recipe})
 		end
 	end
 
@@ -167,11 +112,10 @@ function BitesCookBook:AddIngredientRecipes(tooltip, itemLink)
 		end
 
 		if self.Options.ShowCraftableBuff then
-			local buff, buffIcon = self:FindBuff(recipe.link, recipe.buffIcon)
-			if buff then
-				tooltip:AddLine(indent .. indent .. buff)
+			if recipe.data.Buff then
+				tooltip:AddLine(indent .. indent .. recipe.data.Buff)
 				if self.Options.ShowCraftableIcon then
-					addIcon(tooltip, buffIcon, 33)
+					addIcon(tooltip, recipe.data.BuffIcon, 33)
 				end
 			end
 		end
@@ -186,61 +130,51 @@ function BitesCookBook:HookTooltips()
 	hooksecurefunc(GameTooltip, "Hide", hideIcons)
 
 	hooksecurefunc("ChatFrame_OnHyperlinkShow", function(itemLink, text, button)
-		BitesCookBook:AddIngredientRecipes(ItemRefTooltip, itemLink)
+		BitesCookBook:AddIngredientRecipes(ItemRefTooltip)
 	end)
 
 	-- Hook loot tooltip
 	hooksecurefunc(GameTooltip, "SetLootItem", function(tip, lootIndex)
-		BitesCookBook:AddIngredientRecipes(GameTooltip, GetLootSlotLink(lootIndex))
+		BitesCookBook:AddIngredientRecipes(GameTooltip)
 	end)
 
 	hooksecurefunc(GameTooltip, "SetLootRollItem", function(tip, lootIndex)
-		BitesCookBook:AddIngredientRecipes(GameTooltip, GetLootRollItemLink(lootIndex))
+		BitesCookBook:AddIngredientRecipes(GameTooltip)
 	end)
 
 	-- Hook bag tooltip
 	hooksecurefunc(GameTooltip, "SetBagItem", function(tip, bag, slot)
-		BitesCookBook:AddIngredientRecipes(GameTooltip, GetContainerItemLink(bag, slot))
+		BitesCookBook:AddIngredientRecipes(GameTooltip)
 	end)
 
 	-- Hook bank tooltip
 	hooksecurefunc(GameTooltip, "SetInventoryItem", function(tip, unit, slot)
-		BitesCookBook:AddIngredientRecipes(GameTooltip, GetInventoryItemLink(unit, slot))
+		BitesCookBook:AddIngredientRecipes(GameTooltip)
 	end)
 
 	-- Hook hyper links, used for BankItems and Bagnon_Forever addons
 	hooksecurefunc(GameTooltip, "SetHyperlink", function(tip, itemLink, count)
-		BitesCookBook:AddIngredientRecipes(GameTooltip, itemLink)
+		BitesCookBook:AddIngredientRecipes(GameTooltip)
 	end)
 
 	-- Hook player trade tooltip
 	hooksecurefunc(GameTooltip, "SetTradePlayerItem", function(self, index)
-		BitesCookBook:AddIngredientRecipes(GameTooltip, GetTradePlayerItemLink(index))
+		BitesCookBook:AddIngredientRecipes(GameTooltip)
 	end)
 
 	-- Hook target trade tooltip
 	hooksecurefunc(GameTooltip, "SetTradeTargetItem", function(self, index)
-		BitesCookBook:AddIngredientRecipes(GameTooltip, GetTradeTargetItemLink(index))
+		BitesCookBook:AddIngredientRecipes(GameTooltip)
 	end)
 
 	-- Hook inbox items
 	hooksecurefunc(GameTooltip, "SetInboxItem", function(self, mailIndex, attachmentIndex)
-		if GetInboxItemLink then
-			return BitesCookBook:AddIngredientRecipes(GameTooltip, GetInboxItemLink(mailIndex, attachmentIndex))
-		end
-
-		local itemName = GetInboxItem(mailIndex, attachmentIndex)
-		BitesCookBook:AddIngredientRecipes(GameTooltip, BitesCookBook:GetItemLinkByName(itemName))
+		BitesCookBook:AddIngredientRecipes(GameTooltip)
 	end)
 
 	-- Hook send mail items
 	hooksecurefunc(GameTooltip, "SetSendMailItem", function(self, attachmentIndex)
-		if GetSendMailItemLink then
-			return BitesCookBook:AddIngredientRecipes(GameTooltip, GetSendMailItemLink(attachmentIndex))
-		end
-
-		local itemName = GetSendMailItem(attachmentIndex)
-		BitesCookBook:AddIngredientRecipes(GameTooltip, BitesCookBook:GetItemLinkByName(itemName))
+		BitesCookBook:AddIngredientRecipes(GameTooltip)
 	end)
 end
 
