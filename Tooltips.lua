@@ -40,6 +40,7 @@ local function hideIcons()
 	end
 end
 
+local indent = "    "
 local function addIcon(tooltip, iconTexture, xOffset)
 	local line = _G[tooltip:GetName().."TextLeft"..tooltip:NumLines()]
 	line:SetText(indent .. line:GetText()) -- Indent to make room for the icon
@@ -52,9 +53,7 @@ local function addIcon(tooltip, iconTexture, xOffset)
 	icon:SetPoint("RIGHT", line, "LEFT", xOffset, 0)
 end
 
-local indent = "    "
-
-function BitesCookBook:AddIngredientRecipes(itemLink)
+function BitesCookBook:AddIngredientRecipes(tooltip, itemLink)
 	-- Hide icons from last run
 	hideIcons()
 
