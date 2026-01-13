@@ -27,7 +27,7 @@ function BitesCookBook:ADDON_LOADED(eventName, addonName)
 
 	-- We should cache all the item names by loading the items once.
 	-- This prevent the tooltips from appearing empty when the player first opens them.
-	self:CacheItems()
+	self:StartCacheItems()
 
 	--BitesCookBook:ConfigureSavedVariables() -- Set or load the saved variables.
 	--BitesCookBook:InitializeOptionsMenu() -- Build the options menu.
@@ -125,11 +125,42 @@ function BitesCookBook:SetBuff(recipe)
 	end
 end
 
+function BitesCookBook:StartCacheItems()
+	local last = GetTime()
+	local elapsed = 0
+	local cacheAt = 10
+	local cachingActive = false
+
+	local total = 0
+	for itemID, recipe in pairs(BitesCookBook_RecipesClassic) do
+		total = total + 1
+	end
+
+	self:SetScript("OnUpdate", function()
+		local now = GetTime()
+		elapsed = elapsed + now - last
+		last = now
+
+		if elapsed > cacheAt and not cachingActive then
+			cachingActive = true
+			local cached = self:CacheItems()
+			self:Print(format("Cached %d / %d recipes", cached, total))
+			if cached < total then
+				cacheAt = elapsed + 10
+				cachingActive = false
+				self:Print("Some recipes were not cached. Trying again in 10 seconds.")
+				return
+			end
+
+			self:SetScript("OnUpdate", nil)
+		end
+	end)
+end
+
 BitesCookBook.ItemCache = {}
 function BitesCookBook:CacheItems()
 	-- We load every item in the recipe and reagent lists to cache their names.
 	local cached = 0
-	local total = 0
 	for itemID, recipe in pairs(BitesCookBook_RecipesClassic) do
 		self.Tooltip:ClearLines()
 		self.Tooltip:SetHyperlink("item:"..itemID..":0:0:0") -- Queries the server for the item if not found in the WDB cache
@@ -142,15 +173,12 @@ function BitesCookBook:CacheItems()
 			self:SetBuff(recipe)
 
 			cached = cached + 1
+		else
+			return cached
 		end
-
-		total = total + 1
 	end
 
-	self:Print(format("Cached %d / %d recipes", cached, total))
-	if cached < total then
-		self:Print("Some recipes were not cached. Please reload your UI after a few minutes to try again.")
-	end
+	return cached
 end
 
 local LAST_ITEM_IN_CLASSIC = 24283
