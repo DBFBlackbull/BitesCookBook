@@ -25,10 +25,6 @@ function BitesCookBook:ADDON_LOADED(eventName, addonName)
 	addonName = addonName or arg1
 	if addonName ~= "BitesCookBook" then return end
 
-	-- We should cache all the item names by loading the items once.
-	-- This prevent the tooltips from appearing empty when the player first opens them.
-	self:StartCacheItems()
-
 	--BitesCookBook:ConfigureSavedVariables() -- Set or load the saved variables.
 	--BitesCookBook:InitializeOptionsMenu() -- Build the options menu.
 	self.Recipes = BitesCookBook_RecipesClassic
@@ -39,9 +35,19 @@ function BitesCookBook:ADDON_LOADED(eventName, addonName)
 	self.L = (BitesCookBook.Locales[GetLocale()] or BitesCookBook.Locales["enUS"])
 
 	self:HookTooltips()
-	self:RegisterEvent("CHAT_MSG_SKILL") -- test this
+	self:RegisterEvent("VARIABLES_LOADED")
+	self:RegisterEvent("CHAT_MSG_SKILL")
 	self:RegisterEvent("SKILL_LINES_CHANGED")
-	self:UnregisterEvent(eventName) -- Finally, the addon-loading event is unregistered.
+	self:UnregisterEvent(eventName)
+end
+
+function BitesCookBook:VARIABLES_LOADED(eventName)
+	eventName = eventName or event
+
+	-- We should cache all the item names by loading the items once.
+	-- This prevent the tooltips from appearing empty when the player first opens them.
+	self:StartCacheItems()
+	self:UnregisterEvent(eventName)
 end
 
 function BitesCookBook:SKILL_LINES_CHANGED(eventName)
