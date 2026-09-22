@@ -78,7 +78,7 @@ function BitesCookBook:AddIngredientRecipes(tooltip, itemLink)
 
 			if self.Options.ShowCraftableFirstRank then
 				local RankingRange = recipe["Range"]
-				local FirstRangeText = RankingRange[1] > 1 and RankingRange[1] or self.L["Starter"]
+				local FirstRangeText = RankingRange[1] > 0 and RankingRange[1] or self.L["Starter"]
 
 				-- When the first rank is 1, it's a starter recipe.
 				text = text .. self.TextColors["White"] .. " ("

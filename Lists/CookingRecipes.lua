@@ -453,7 +453,7 @@ BitesCookBook_RecipesClassic = {
 
 	[6888] = { -- "Herb Baked Egg"
 		["Amount"] = 1,
-		["Range"] = {1, 45, 65, 85},
+		["Range"] = {0, 45, 65, 85},
 		["Source"] = {"World"},
 		["Materials"] = {
 			[6889] = 1, --Small Egg
